@@ -2,6 +2,8 @@ var _ = require('underscore');
 var async = require('async');
 var crypto = require('crypto');
 var mysqlPool = require('./mysql');
+var Memcached = require('memcached');
+var memcached = new Memcached('localhost:11211');
 
 var globalConfig = {
   userLockThreshold: process.env.ISU4_USER_LOCK_THRESHOLD || 3,
@@ -19,7 +21,9 @@ var helpers = {
     if(!user) {
       return callback(false);
     }
-
+    memcached.get('user_' + user.id + '_total' , function (err, data) {
+    if (!data) {
+console.log('cache failed lock' + user.id + ':' + data);
     mysqlPool.query(
       'SELECT COUNT(1) AS failures FROM login_log WHERE ' +
       'user_id = ? AND id > IFNULL((select id from login_log where ' +
@@ -29,13 +33,25 @@ var helpers = {
         if(err) {
           return callback(false);
         }
-
+        memcached.set('user' + user.id, globalConfig.userLockThreshold <= rows[0].failures , 3600, function(){});
         callback(globalConfig.userLockThreshold <= rows[0].failures);
       }
     );
+    } else {
+console.log('cache suc lock' + JSON.parse(data));
+       if (JSON.parse(data).length > 0) {
+       callback(false);
+       } else {
+       callback(true);
+       }
+    }
+});
   },
 
   isIPBanned: function(ip, callback) {
+    memcached.get('ip_' + ip , function (err, data) {
+    if (!data) {
+console.log('cache failed banned' + ip + ':' + data);
     mysqlPool.query(
       'SELECT COUNT(1) AS failures FROM login_log WHERE ' +
       'ip = ? AND id > IFNULL((select id from login_log where ip = ? AND ' +
@@ -49,6 +65,15 @@ var helpers = {
         callback(globalConfig.ipBanThreshold <= rows[0].failures);
       }
     );
+    } else {
+console.log('cache banned');
+       if (data.length > 0) {
+       callback(false);
+       } else {
+       callback(true);
+       }
+    }
+   });
   },
 
   attemptLogin: function(req, callback) {
@@ -97,11 +122,62 @@ var helpers = {
         ' VALUES (?,?,?,?,?)',
         [new Date(), (user || {}).id, login, ip, succeeded],
         function(e, rows) {
+          async.waterfall([
+            function(cb) {
+            if (user) {
+              memcached.del('user_'+ user.id, function(){ cb(); });
+            } else {
+              cb();
+            }
+            }, function(cb) {
+
+            memcached.get('ip_' + ip, function(err, data) {
+            console.log('cache insert: ' + data);
+                if (data) {
+                memcached.set('ip_' + ip, data + 1, 3600,function(err,data){
+                  cb();
+                  });
+               } else {
+                 if (succeeded) {
+                   memcached.set('ip_' + ip, 0, 3600, function(err,data){
+                    cb();
+                   });
+                 } else {
+                  memcached.set('ip_' + ip, data + 1,3600, function(err,data){
+                    cb();
+                  });
+                 }
+               }
+          });
+          }, function(cb) {
+          if (user) {
+
+              memcached.get('user_' + user.id + '_total', function(err, data) {
+                if (data) {
+                console.log('cache insert total: ' + data);
+                   memcached.set('user_' + user.id + '_total', JSON.stringify(JSON.parse(data).concat(user)) , 3600, function(err,data){
+                    cb();
+                   });
+               } else {
+                 console.log('cache insert total: ' + data);
+                 if (succeeded) {
+                   memcached.set('user_' + user.id + '_total', JSON.stringify([]) , 3600, function(err,data){
+                    cb();
+                   });
+                 } else {
+                   memcached.set('user_' + user.id + '_total', JSON.stringify([user]) , 3600, function(err,data){
+                    cb();
+                  });
+                 }
+               }
+              });
+           }
           callback(err, user);
-        }
-      );
-    });
-  },
+        }]);
+    }
+);
+});
+},
 
   getCurrentUser: function(user_id, callback) {
     mysqlPool.query('SELECT * FROM users WHERE id = ?', [user_id], function(err, rows) {
