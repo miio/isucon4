@@ -19,7 +19,7 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(session({ secret: 'isucon4-node-qualifier', resave: true, saveUninitialized: true }));
 app.use(express.static(path.join(__dirname, '../public')));
 
-app.locals.strftime = strftime(format, date);
+app.locals.strftime = strftime;
 
 routes(app);
 
