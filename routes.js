@@ -50,7 +50,11 @@ module.exports = function (app) {
         [user.id],
         function(err, rows) {
           var lastLogin = rows[rows.length-1] || {};
-          res.render('mypage', { last_login: lastLogin });
+          res.send(views.mypage([
+            app.locals.strftime('%Y-%m-%d %H:%M:%S', lastLogin.created_at),
+            lastLogin.ip,
+            lastLogin.login
+          ]));
         }
       );
     });

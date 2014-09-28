@@ -9,11 +9,12 @@ function loadTemplate(filename) {
 
 function resolveArgs(tmpl, args) {
   args = args || [];
+  tmpl = tmpl.split('{{?}}');
   for (var i = 0; i < args.length; i++) {
-    console.log(args[i]);
-    tmpl = tmpl.split('{{?}}', 2).join(args[i]);
+    console.log(tmpl);
+    tmpl = [tmpl.slice(0, 2).join(args[i] || '')].concat(tmpl.slice(2));
   }
-  return tmpl.split('{{?}}').join('');
+  return tmpl.join('').split('{{?}}').join('');
 }
 
 // template cache
