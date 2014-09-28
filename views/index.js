@@ -13,7 +13,7 @@ function resolveArgs(tmpl, args) {
   for (var i = 0; i < args.length; i++) {
     tmpl = [tmpl.slice(0, 2).join(args[i] || '')].concat(tmpl.slice(2));
   }
-  return tmpl.join('').split('{{?}}').join('');
+  return tmpl.join('');
 }
 
 // template cache
