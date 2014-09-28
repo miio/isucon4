@@ -1,4 +1,3 @@
-var bodyParser = require('body-parser');
 var express = require('express');
 var logger = require('morgan');
 var session = require('express-session');
@@ -11,7 +10,6 @@ var app = express();
 app.use(logger('dev'));
 app.disable('x-powered-by');
 app.enable('trust proxy');
-app.use(bodyParser.urlencoded({ extended: false }));
 app.use(session({ secret: 'isucon4-node-qualifier', resave: true, saveUninitialized: true }));
 
 app.locals.strftime = strftime;
@@ -30,4 +28,3 @@ var server = app.listen(sock_file_path, function() {
   fs.chmod(sock_file_path, 0666);
   console.log('Listening on port %d', server.address());
 });
-

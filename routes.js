@@ -1,3 +1,4 @@
+var bodyParser = require('body-parser');
 var async = require('async');
 var helpers = require('./helpers');
 var mysqlPool = require('./mysql');
@@ -13,6 +14,7 @@ module.exports = function (app) {
     res.send(views.index(notice && [notice]));
   });
 
+  app.post('/login', bodyParser.urlencoded({ extended: false }));
   app.post('/login', function(req, res) {
     helpers.attemptLogin(req, function(err, user) {
       if(err) {
