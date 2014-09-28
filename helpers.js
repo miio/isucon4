@@ -116,11 +116,11 @@ console.log('cache banned');
         function(e, rows) {
           async.waterfall([
             function(cb) {
-            if (user) {
-              memcached.del('user_'+ user.id, function(){ cb(); });
-            } else {
+            //if (user) {
+            //  memcached.del('user_'+ user.id, function(){ cb(); });
+            //} else {
               cb();
-            }
+            //}
             }, function(cb) {
 
             memcached.get('ip_' + ip, function(err, data) {
