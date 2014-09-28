@@ -1,13 +1,16 @@
 var async = require('async');
 var helpers = require('./helpers');
 var mysqlPool = require('./mysql');
+var views = require('./views');
+
+var notice_str = ['<div id="notice-message" class="alert alert-danger" role="alert">', '', '</div>'];
 
 module.exports = function (app) {
   app.get('/', function(req, res) {
     var notice = req.session.notice;
     req.session.notice = null;
 
-    res.render('index', { 'notice': notice });
+    res.send(views.index(notice && [notice]));
   });
 
   app.post('/login', function(req, res) {
@@ -15,16 +18,17 @@ module.exports = function (app) {
       if(err) {
         switch(err) {
           case 'locked':
-            req.session.notice = 'This account is locked.';
+            notice_str[1] = 'This account is locked.';
             break;
           case 'banned':
-            req.session.notice = 'You\'re banned.';
+            notice_str[1] = 'You\'re banned.';
             break;
           default:
-            req.session.notice = 'Wrong username or password';
+            notice_str[1] = 'Wrong username or password';
             break;
         }
 
+        req.session.notice = notice_str.join('');
         return res.redirect('/');
       }
 
@@ -36,7 +40,8 @@ module.exports = function (app) {
   app.get('/mypage', function(req, res) {
     helpers.getCurrentUser(req.session.userId, function(user) {
       if(!user) {
-        req.session.notice = 'You must be logged in';
+        notice_str[1] = 'You must be logged in';
+        req.session.notice = notice_str.join('');
         return res.redirect('/');
       }
 
@@ -44,8 +49,8 @@ module.exports = function (app) {
         'SELECT * FROM login_log WHERE succeeded = 1 AND user_id = ? ORDER BY id DESC LIMIT 2',
         [user.id],
         function(err, rows) {
-          var lastLogin = rows[rows.length-1];
-          res.render('mypage', { 'last_login': lastLogin });
+          var lastLogin = rows[rows.length-1] || {};
+          res.render('mypage', { last_login: lastLogin });
         }
       );
     });

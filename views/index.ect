@@ -1,12 +1,11 @@
 <!DOCTYPE html>
-<% @title ||= 'isucon4' %>
 <html>
   <head>
     <meta charset="UTF-8">
     <link rel="stylesheet" href="/stylesheets/bootstrap.min.css">
     <link rel="stylesheet" href="/stylesheets/bootflat.min.css">
     <link rel="stylesheet" href="/stylesheets/isucon-bank.css">
-    <title><%= @title %></title>
+    <title>isucon4</title>
   </head>
   <body>
     <div class="container">
@@ -23,15 +22,10 @@
           <p>また、残高照会のみなど、必要のない場面で乱数表の入力を求められても、<br>絶対に入力しないでください。</p>
         </div>
       </div>
-
       <div class="page-header">
         <h1>ログイン</h1>
       </div>
-
-      <% if @notice : %>
-        <div id="notice-message" class="alert alert-danger" role="alert"><%= @notice %></div>
-      <% end %>
-
+      {{?}}
       <div class="container">
         <form class="form-horizontal" role="form" action="/login" method="POST">
           <div class="form-group">
@@ -56,4 +50,3 @@
     </div>
   </body>
 </html>
-
