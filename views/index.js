@@ -18,8 +18,8 @@ function resolveArgs(tmpl, args) {
 }
 
 // template cache
-var index = loadTemplate('index.ect');
-var mypage = loadTemplate('mypage.ect');
+var index = loadTemplate('index.html');
+var mypage = loadTemplate('mypage.html');
 
 exports.index = resolveArgs.bind(null, index);
 exports.mypage = resolveArgs.bind(null, mypage);
