@@ -5,6 +5,7 @@ var logger = require('morgan');
 var path = require('path');
 var session = require('express-session');
 var strftime = require('strftime');
+var fs = require("fs");
 var routes = require('./routes.js');
 
 var app = express();
@@ -18,9 +19,7 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(session({ secret: 'isucon4-node-qualifier', resave: true, saveUninitialized: true }));
 app.use(express.static(path.join(__dirname, '../public')));
 
-app.locals.strftime = function(format, date) {
-  return strftime(format, date);
-};
+app.locals.strftime = strftime(format, date);
 
 routes(app);
 
@@ -28,6 +27,11 @@ app.use(function (err, req, res, next) {
   res.status(500).send('Error: ' + err.message);
 });
 
-var server = app.listen(process.env.PORT || 8080, function() {
+var sock_file_path = '/tmp/node.sock';
+if (fs.existsSync(sock_file_path)) {
+  fs.unlinkSync(sock_file_path);
+}
+var server = app.listen(sock_file_path, function() {
+  fs.chmod(sock_file_path, 0666);
   console.log('Listening on port %d', server.address().port);
 });
