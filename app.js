@@ -10,11 +10,12 @@ var routes = require('./routes.js');
 var app = express();
 
 app.use(logger('dev'));
+app.disable('x-powered-by');
 app.enable('trust proxy');
 app.engine('ect', ect({ watch: true, root: __dirname + '/views', ext: '.ect' }).render);
 app.set('view engine', 'ect');
 app.use(bodyParser.urlencoded({ extended: false }));
-app.use(session({ 'secret': 'isucon4-node-qualifier', resave: true, saveUninitialized: true }));
+app.use(session({ secret: 'isucon4-node-qualifier', resave: true, saveUninitialized: true }));
 app.use(express.static(path.join(__dirname, '../public')));
 
 app.locals.strftime = function(format, date) {
