@@ -38,12 +38,8 @@ console.log('cache failed lock' + user.id + ':' + data);
       }
     );
     } else {
-console.log('cache suc lock' + JSON.parse(data));
-       if (JSON.parse(data).length > 0) {
-       callback(false);
-       } else {
-       callback(true);
-       }
+console.log('cache suc lock' + JSON.parse(data).length);
+callback(globalConfig.userLockThreshold <= JSON.parse(data).length);
     }
 });
   },
@@ -67,11 +63,7 @@ console.log('cache failed banned' + ip + ':' + data);
     );
     } else {
 console.log('cache banned');
-       if (data.length > 0) {
-       callback(false);
-       } else {
-       callback(true);
-       }
+       callback(globalConfig.ipBanThreshold <= data);
     }
    });
   },
@@ -134,9 +126,16 @@ console.log('cache banned');
             memcached.get('ip_' + ip, function(err, data) {
             console.log('cache insert: ' + data);
                 if (data) {
-                memcached.set('ip_' + ip, data + 1, 3600,function(err,data){
-                  cb();
+                 if (succeeded) {
+                   memcached.set('ip_' + ip, 0, 3600, function(err,data){
+                    cb();
+                   });
+                 } else {
+                  memcached.set('ip_' + ip, data + 1,3600, function(err,data){
+                    cb();
                   });
+                 }
+
                } else {
                  if (succeeded) {
                    memcached.set('ip_' + ip, 0, 3600, function(err,data){
@@ -155,11 +154,17 @@ console.log('cache banned');
               memcached.get('user_' + user.id + '_total', function(err, data) {
                 if (data) {
                 console.log('cache insert total: ' + data);
+                 if (succeeded) {
+                   memcached.set('user_' + user.id + '_total', JSON.stringify([]) , 3600, function(err,data){
+                    cb();
+                   });
+                 } else {
                    memcached.set('user_' + user.id + '_total', JSON.stringify(JSON.parse(data).concat(user)) , 3600, function(err,data){
                     cb();
                    });
+                 }
                } else {
-                 console.log('cache insert total: ' + data);
+                 console.log('cache insert first: ');
                  if (succeeded) {
                    memcached.set('user_' + user.id + '_total', JSON.stringify([]) , 3600, function(err,data){
                     cb();
@@ -248,6 +253,158 @@ console.log('cache banned');
                     function(err, rows) {
                       if(globalConfig.userLockThreshold <= (rows[0] || {}).cnt) {
                         lockedUsers.push(row.login);
+                      }
+                      cb(null);
+                    }
+                  );
+                };
+              }),
+              function(err) {
+                callback(lockedUsers);
+              }
+            );
+          }
+        );
+      }
+    );
+  },
+
+
+  getBeginBannedIPs: function(callback) {
+    mysqlPool.query(
+      'SELECT ip FROM (SELECT ip, MAX(succeeded) as max_succeeded, COUNT(1) as cnt FROM '+
+      'login_log GROUP BY ip) AS t0 WHERE t0.max_succeeded = 0 AND t0.cnt >= ?',
+      [globalConfig.ipBanThreshold],
+      function(err, rows) {
+        var bannedIps = [];//_.map(rows, function(row) { return row.ip; });
+
+        mysqlPool.query(
+          'SELECT ip, MAX(id) AS last_login_id FROM login_log WHERE succeeded = 1 GROUP by ip',
+          function(err, rows) {
+            async.parallel(
+              _.map(rows, function(row) {
+                return function(cb) {
+                  mysqlPool.query(
+                    'SELECT COUNT(1) AS cnt FROM login_log WHERE ip = ? AND ? < id',
+                    [row.ip, row.last_login_id],
+                    function(err, rows) {
+                      if(globalConfig.ipBanThreshold -1 == (rows[0] || {}).cnt) {
+                        bannedIps.push(row.ip);
+                      }
+                      cb(null);
+                    }
+                  );
+                };
+              }),
+              function(err) {
+                callback(bannedIps);
+              }
+            );
+          }
+        );
+      }
+    );
+  },
+
+  getFirstLockedUsers: function(callback) {
+    mysqlPool.query(
+      'SELECT user_id, login FROM ' +
+      '(SELECT user_id, login, MAX(succeeded) as max_succeeded, COUNT(1) as cnt FROM ' +
+      'login_log GROUP BY user_id) AS t0 WHERE t0.user_id IS NOT NULL AND ' +
+      't0.max_succeeded = 0 AND t0.cnt >= ?',
+      [globalConfig.userLockThreshold],
+      function(err, rows) {
+        var lockedUsers = [];//_.map(rows, function(row) { return row.user_id; });
+
+        mysqlPool.query(
+          'SELECT user_id, login, MAX(id) AS last_login_id FROM login_log WHERE ' +
+          'user_id IS NOT NULL AND succeeded = 1 GROUP BY user_id',
+          function(err, rows) {
+            async.parallel(
+              _.map(rows, function(row) {
+                return function(cb) {
+                  mysqlPool.query(
+                    'SELECT COUNT(1) AS cnt FROM login_log WHERE user_id = ? AND ? < id',
+                    [row.user_id, row.last_login_id],
+                    function(err, rows) {
+                      if(1 == (rows[0] || {}).cnt) {
+                        lockedUsers.push(row.user_id);
+                      }
+                      cb(null);
+                    }
+                  );
+                };
+              }),
+              function(err) {
+                callback(lockedUsers);
+              }
+            );
+          }
+        );
+      }
+    );
+  },
+  getAfterLockedUsers: function(callback) {
+    mysqlPool.query(
+      'SELECT user_id, login FROM ' +
+      '(SELECT user_id, login, MAX(succeeded) as max_succeeded, COUNT(1) as cnt FROM ' +
+      'login_log GROUP BY user_id) AS t0 WHERE t0.user_id IS NOT NULL AND ' +
+      't0.max_succeeded = 0 AND t0.cnt >= ?',
+      [globalConfig.userLockThreshold],
+      function(err, rows) {
+        var lockedUsers = _.map(rows, function(row) { return row.user_id; });
+
+        mysqlPool.query(
+          'SELECT user_id, login, MAX(id) AS last_login_id FROM login_log WHERE ' +
+          'user_id IS NOT NULL AND succeeded = 1 GROUP BY user_id',
+          function(err, rows) {
+            async.parallel(
+              _.map(rows, function(row) {
+                return function(cb) {
+                  mysqlPool.query(
+                    'SELECT COUNT(1) AS cnt FROM login_log WHERE user_id = ? AND ? < id',
+                    [row.user_id, row.last_login_id],
+                    function(err, rows) {
+                      if(1 == (rows[0] || {}).cnt) {
+                        lockedUsers.push(row.user_id);
+                      }
+                      cb(null);
+                    }
+                  );
+                };
+              }),
+              function(err) {
+                callback(lockedUsers);
+              }
+            );
+          }
+        );
+      }
+    );
+  },
+  getBeginLockedUsers: function(callback) {
+    mysqlPool.query(
+      'SELECT user_id, login FROM ' +
+      '(SELECT user_id, login, MAX(succeeded) as max_succeeded, COUNT(1) as cnt FROM ' +
+      'login_log GROUP BY user_id) AS t0 WHERE t0.user_id IS NOT NULL AND ' +
+      't0.max_succeeded = 0 AND t0.cnt >= ?',
+      [globalConfig.userLockThreshold],
+      function(err, rows) {
+        var lockedUsers = _.map(rows, function(row) { return row.user_id; });
+
+        mysqlPool.query(
+          'SELECT user_id, login, MAX(id) AS last_login_id FROM login_log WHERE ' +
+          'user_id IS NOT NULL AND succeeded = 1 GROUP BY user_id',
+          function(err, rows) {
+            async.parallel(
+              _.map(rows, function(row) {
+                return function(cb) {
+                  mysqlPool.query(
+                    'SELECT COUNT(1) AS cnt FROM login_log WHERE user_id = ? AND ? < id',
+                    [row.user_id, row.last_login_id],
+                    function(err, rows) {
+                      if(globalConfig.userLockThreshold -1 == (rows[0] || {}).cnt) {
+                        lockedUsers.push(row.user_id);
                       }
                       cb(null);
                     }
