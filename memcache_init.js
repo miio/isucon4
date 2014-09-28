@@ -6,6 +6,15 @@ var async = require('async');
 
 async.waterfall(
 [
+function(cb){
+mysqlPool.query('SELECT * FROM users', [], (function(err, datas) {
+	datas.map(function(data) {
+		memcached.set('user_' + data.id + '_total', JSON.stringify('[]'), 3600, function(){});
+	});
+cb();
+	})
+);
+},
 function(cb) {
 helper.getFirstLockedUsers(function(datas) {
 console.log(datas);
